@@ -1,0 +1,1076 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-10-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(actuar)
+library(fitdistrplus)
+library(dplyr)
+library(distr)
+library(DescTools)
+library(bp)
+library(car)
+```
+
+# The reparameterized inverse Gaussian distribution{.tabset}
+
+## Varying $\theta$
+
+```{r}
+# Clean Component 
+clnrIG    <- function(x, t, g, a, log = F){ (a)*dinvgauss(x,sqrt(t*(3*g+t)), (t*(3*g+t))/g,log=log)}
+
+# contaminated component
+contrIG    <- function(x, t, g, a, e, log = F){ (1-a)*dinvgauss(x,sqrt(t*(3*g*e+t)), (t*(3*g*e+t))/(g*e),log=log)}
+
+curve(clnrIG(x, 0.4, 1, a = 1), 0, 12, ylim = c(0,1), ylab = "f(x)", xlab = expression(x), lty = 2 )
+curve(clnrIG(x, 1, 1, a = 1), 0, 12, add = TRUE)
+curve(clnrIG(x, 4, 1, a = 1), 0, 12, add = TRUE, lty = 3)
+legend("topright", legend =c(expression(theta~"= 0.4"), expression(theta~"= 1"), expression(theta~"= 4")), lty = c(2, 1, 3), title = expression("rIG with varying"~ theta))
+```
+## Varying $\gamma$
+
+```{r}
+
+curve(clnrIG(x, 1, 0.4, a = 1), 0, 15, ylim = c(0,0.8), ylab = "f(x)", xlab = expression(x), lty = 2)
+curve(clnrIG(x, 1, 1, a = 1), 0, 15, add = TRUE)
+curve(clnrIG(x, 1, 4, a = 1), 0, 15, add = TRUE, lty = 3)
+legend("topright", legend =c(expression(gamma~"= 0.4"), expression(gamma~"= 1"), expression(gamma~"= 4")), lty = c(2, 1, 3), title = expression("rIG with varying"~ gamma)) 
+
+```
+# Simulation from base rIG and classical MLE
+
+```{r}
+
+# mrIG
+
+dminvgauss <- function(x,theta,v,log=F){
+dinvgauss(x,sqrt(theta*(3*v+theta)), (theta*(3*v+theta))/v,log=log)
+}
+
+
+
+theta <- 2
+v <- 0.4
+#simulate data
+
+x<-rinvgauss(10000,sqrt(theta*(3*v+theta)),(theta*(3*v+theta))/v)
+
+# log-like with constrained parameters 
+dminvgaussMLE <- function(par,x){
+theta <- exp(par[1]) #back-transformation
+v <- exp(par[2]) #back-transformation
+return(sum(dminvgauss(x, theta, v, log = T)))
+}
+
+start <- log(c(theta,v))
+
+est <- optim(par = start,fn = dminvgaussMLE,x=x, control=list(fnscale= -1))
+
+par <- est$par
+thetaest <- exp(par[1]) #back transformation
+vest <- exp(par[2])
+loglike <- est$value
+
+curve(clnrIG(x, theta, v, a = 1), 0, 15, ylim = c(0,0.5), ylab = "f(x)", xlab = expression(x))
+curve(clnrIG(x, thetaest, vest, a = 1), add = TRUE, lty = 2)
+legend("topright", legend =c("Empirical rIG density", "ML Estimated density"), lty = c(1,2), title = "Simulated & Estimated rIG") 
+
+
+```
+# Mixed Simulation and base rIG estimation{.tabset}
+
+## $\theta = 2$, $\gamma = 0.4$, $\alpha = 0.75$ and $\eta = 2$
+
+```{r}
+
+theta <- 2
+v <- 0.4
+vinf <- 0.4*2 # inflate the variance by multiplying by eta
+
+set.seed(18)
+x<- c(rinvgauss(10000*0.75,sqrt(theta*(3*v+theta)),(theta*(3*v+theta))/v), rinvgauss(10000*0.25,sqrt(theta*(3*vinf+theta)),(theta*(3*vinf+theta))/vinf))
+
+
+# mrIG
+
+dminvgauss <- function(x,theta,v,log=F){
+dinvgauss(x,sqrt(theta*(3*v+theta)), (theta*(3*v+theta))/v,log=log)
+}
+
+
+dminvgaussMLE <- function(par,x){
+theta <- exp(par[1]) #back-transformation
+v <- exp(par[2]) #back-transformation
+return(sum(dminvgauss(x, theta, v, log = T)))
+}
+
+start <- log(c(theta,v))
+
+est <- optim(par = start,fn = dminvgaussMLE,x=x, control=list(fnscale= -1))
+
+par <- est$par
+thetaest <- exp(par[1]) #back transformation
+vest <- exp(par[2])
+loglike <- est$value
+
+curve(clnrIG(x, 2, 0.4, a = 0.75) + contrIG(x, 2, 0.4, a = 0.75, 2), 0, 15, ylab = "f(x)", ylim = c(0, 0.5), xlab = expression(x))
+curve(clnrIG(x, thetaest, vest, a = 1), add = TRUE, lty = 2)
+legend("topright", legend =c("Mixed rIG density", "ML Estimated density"), lty = c(1,2), title = "Simulated & Estimated rIG") 
+
+```
+## $\theta = 2$, $\gamma = 0.4$, $\alpha = 0.85$ and $\eta = 4$
+
+```{r}
+
+theta <- 2
+v <- 0.4
+vinf <- 0.4*4
+
+set.seed(18)
+x<- c(rinvgauss(10000*0.85,sqrt(theta*(3*v+theta)),(theta*(3*v+theta))/v), rinvgauss(10000*0.15,sqrt(theta*(3*vinf+theta)),(theta*(3*vinf+theta))/vinf))
+
+start <- log(c(theta,v))
+
+est <- optim(par = start,fn = dminvgaussMLE,x=x, control=list(fnscale= -1))
+
+par <- est$par
+thetaest <- exp(par[1]) #back transformation
+vest <- exp(par[2])
+loglike <- est$value
+
+curve(clnrIG(x, 2, 0.4, a = 0.85) + contrIG(x, 2, 0.4, a = 0.85, 4), 0, 15, ylab = "f(x)", ylim = c(0, 0.5), xlab = expression(x))
+curve(clnrIG(x, thetaest, vest, a = 1), add = TRUE, lty = 2)
+legend("topright", legend =c("Mixed rIG density", "ML Estimated density"), lty = c(1,2), title = "Simulated & Estimated rIG") 
+
+```
+# Mixed simulation & mixed estimation by ECM 
+
+```{r,  warning = FALSE}
+
+# modified sum only considers finite values
+sum.finite <- function(x) {
+  sum(x[is.finite(x)])
+}
+
+# mode-parameterized IG
+rIG <- function(x,theta,v,log=F){
+dinvgauss(x,sqrt(theta*(3*v+theta)), (theta*(3*v+theta))/v,log=log)
+}
+
+z <- function(x, t, g, a, e){
+  return(ifelse((a*rIG(x, t, g))/(clnrIG(x, t, g, a, log = F) + contrIG(x, t, g, a, e, log = F)) > 0.5, 1, 0))
+}
+
+v <- 0.4
+theta <- 2
+alpha <- 0.75
+eta <- 2
+vinf <- 2*0.4
+
+set.seed(18)
+sim <- c(rinvgauss(1000*0.75,sqrt(theta*(3*v+theta)),(theta*(3*v+theta))/v), rinvgauss(1000*0.25,sqrt(theta*(3*vinf+theta)),(theta*(3*vinf+theta))/vinf))
+
+good <- z(sim, 2, 0.4, 0.75, 2)
+
+Q <- data.frame(matrix(,nrow = 0, ncol = 2))
+
+Q[1,] <- cbind(1,0)
+
+# starting value of expected value of the log likelihood
+Q[2,] <- cbind(2,sum.finite(good*log(alpha) + (1-good)*log(1-alpha)) + sum.finite(good*rIG(sim,theta,v, log = T) + (1-good)*contrIG(sim,theta, v, a = 0, eta, log = T)))
+
+k <- 2
+
+search <- data.frame(matrix(, ncol = 5, nrow = 0))
+colnames(search) <- c("Iteration", "alpha", "theta", "gamma", "eta")
+search[1,] <- rbind(1, 0.75, 2, 0.4, 2)
+
+# Prepare parameters for implementation of EM Algorithm
+alpha_1 <- 0.75
+theta_1 <- 2
+gamma_1 <- 0.4
+eta_1 <- 2
+
+
+while (abs(Q[k, 2]-Q[k-1, 2])>=0.0000001 & k <= 150) {
+  # E step
+  good <- z(sim,theta_1, gamma_1, alpha_1, eta_1)
+  
+  # M step
+  dminvgaussmixecm <- function(par){
+  t <- exp(par[1])
+  g <- exp(par[2])
+  e <- exp(par[3])
+  sum(good*rIG(sim, t, g, log = T) + (1-good)*contrIG(sim, t, g, a = 0 , e, log = T))}
+  
+  
+  # Update iteration tracker
+  search[k, 1] <- k 
+  
+  # Update alpha
+  search[k,2] <- max(0.5, sum(good == 1)/length(sim)) # mean(z_i)
+  
+  # Update theta, gamma, eta 
+  search[k, 3:5] <- exp(optim(log(c(theta_1, gamma_1, eta_1)), dminvgaussmixecm, control=list(fnscale= -1))$par[1:3])
+  
+  search[k, 6] <- optim(log(c(theta_1, gamma_1, eta_1)), dminvgaussmixecm, control=list(fnscale= -1))$value
+  
+  alpha_1 <- search[k,2]
+  theta_1 <- search[k,3]
+  gamma_1 <- search[k,4]
+  eta_1 <- search[k,5]
+  loglike <- search[k, 6]
+  
+  k <- k + 1
+  Q[k, ] <- cbind(k, sum.finite(good*log(alpha_1) + (1-good)*log(1-alpha_1)) + sum.finite(good*rIG(sim,theta_1,gamma_1,log = T)) + (1-good)*contrIG(sim,theta_1, gamma_1, 0, eta_1, log = T)) 
+  
+  
+}
+
+curve(clnrIG(x, 2, 0.4, a = 0.75) + contrIG(x, 2, 0.4, a = 0.75, 2), 0, 20, ylab = "", ylim = c(0, 0.5))
+curve(clnrIG(x, theta_1, gamma_1, a = alpha_1), 0, 20, add = TRUE, lty = 2)
+#curve(contrIG(x, theta_1, gamma_1, a = alpha_1, eta_1), 0, 20, add = TRUE, lty = 3)
+legend("topright", legend =c("Mixed rIG density", "good points density"), lty = c(1,2), title = "Simulated & Estimated rIG") 
+
+
+```
+
+```{r,  warning = FALSE}
+
+# modified sum only considers finite values
+sum.finite <- function(x) {
+  sum(x[is.finite(x)])
+}
+
+
+z <- function(x, t, g, a, e){
+  return(ifelse((a*rIG(x, t, g))/(clnrIG(x, t, g, a, log = F) + contrIG(x, t, g, a, e, log = F)) > 0.5, 1, 0))
+}
+
+v <- 0.4
+theta <- 2
+alpha <- 0.85
+eta <- 4
+vinf <- 4*v
+
+set.seed(18)
+sim <- c(rinvgauss(1000*0.85,sqrt(theta*(3*v+theta)),(theta*(3*v+theta))/v), rinvgauss(1000*0.15,sqrt(theta*(3*vinf+theta)),(theta*(3*vinf+theta))/vinf))
+
+good <- z(sim, 2, 0.4, 0.85, 4)
+
+Q <- data.frame(matrix(,nrow = 0, ncol = 2))
+
+Q[1,] <- cbind(1,0)
+
+# starting value of expected value of the log likelihood
+Q[2,] <- cbind(2,sum.finite(good*log(alpha) + (1-good)*log(1-alpha)) + sum.finite(good*rIG(sim,theta,v, log = T) + (1-good)*contrIG(sim,theta, v, a = 0, eta, log = T)))
+
+k <- 2
+
+search <- data.frame(matrix(, ncol = 5, nrow = 0))
+colnames(search) <- c("Iteration", "alpha", "theta", "gamma", "eta")
+search[1,] <- rbind(1, 0.85, 2, 0.4, 4)
+
+# Prepare parameters for implementation of EM Algorithm
+alpha_1 <- 0.85
+theta_1 <- 2
+gamma_1 <- 0.4
+eta_1 <- 4
+
+
+while (abs(Q[k, 2]-Q[k-1, 2])>=0.0000001 & k <= 150) {
+  # E step
+  good <- z(sim,theta_1, gamma_1, alpha_1, eta_1)
+  
+  # M step
+  dminvgaussmixecm <- function(par){
+  t <- exp(par[1])
+  g <- exp(par[2])
+  e <- exp(par[3])
+  sum(good*rIG(sim, t, g, log = T) + (1-good)*contrIG(sim, t, g, a = 0 , e, log = T))}
+  
+  
+  # Update iteration tracker
+  search[k, 1] <- k 
+  
+  # Update alpha
+  search[k,2] <- max(0.5, sum(good == 1)/length(sim)) # mean(z_i)
+  
+  # Update theta, gamma, eta 
+  search[k, 3:5] <- exp(optim(log(c(theta_1, gamma_1, eta_1)), dminvgaussmixecm, control=list(fnscale= -1))$par[1:3])
+   search[k, 6] <- optim(log(c(theta_1, gamma_1, eta_1)), dminvgaussmixecm, control=list(fnscale= -1))$value
+  
+  alpha_1 <- search[k,2]
+  theta_1 <- search[k,3]
+  gamma_1 <- search[k,4]
+  eta_1 <- search[k,5]
+  loglike <- search[k, 6]
+  
+  k <- k + 1
+  Q[k, ] <- cbind(k, sum.finite(good*log(alpha_1) + (1-good)*log(1-alpha_1)) + sum.finite(good*rIG(sim,theta_1,gamma_1,log = T)) + (1-good)*contrIG(sim,theta_1, gamma_1, 0, eta_1, log = T)) 
+  
+  
+}
+
+curve(clnrIG(x, 2, 0.4, a = 0.85) + contrIG(x, 2, 0.4, a = 0.85, 4), 0, 12, ylab = "f(x)", ylim = c(0, 0.5), xlab = "Simulated Mixture")
+curve(clnrIG(x, theta_1, gamma_1, a = alpha_1), 0, 50, add = TRUE, lty = 2)
+curve(contrIG(x, theta_1, gamma_1, a = alpha_1, eta_1), 0, 50, add = TRUE, lty = 3)
+legend("topright", legend =c("Mixed rIG density", "good points density", "bad points density"), lty = c(1,2, 3), title = "Simulated & Estimated rIG") 
+
+
+```
+
+# Application, Real Data Analysis of Sleep Blood Pressure data{.tabset} 
+
+## Exploratory Data Analysis
+
+
+```{r,  warning = FALSE}
+
+
+
+# modified sum only considers finite values
+sum.finite <- function(x) {
+  sum(x[is.finite(x)])
+}
+
+z <- function(x, t, g, a, e){
+  return(ifelse((a*rIG(x, t, g))/(clnrIG(x, t, g, a, log = F) + contrIG(x, t, g, a, e, log = F)) > 0.7, 1, 0))
+}
+
+
+v <- 130
+theta <- 66
+alpha <- 0.97
+eta <- 110 # just guessing 
+vinf <- v*110
+
+set.seed(18)
+sim <- c(rinvgauss(26387*alpha,sqrt(theta*(3*v+theta)),(theta*(3*v+theta))/v), rinvgauss(26387*(1-alpha),sqrt(theta*(3*vinf+theta)),(theta*(3*vinf+theta))/vinf))
+
+good <- z(sim, theta, v, 0.97, 110)
+
+Q <- data.frame(matrix(,nrow = 0, ncol = 2))
+
+Q[1,] <- cbind(1,0)
+
+# starting value of expected value of the log likelihood
+Q[2,] <- cbind(2,sum.finite(good*log(alpha) + (1-good)*log(1-alpha)) + sum.finite(good*rIG(sim,theta,v, log = T) + (1-good)*contrIG(sim,theta, v, a = 0, eta, log = T)))
+
+k <- 2
+
+search <- data.frame(matrix(, ncol = 5, nrow = 0))
+colnames(search) <- c("Iteration", "alpha", "theta", "gamma", "eta")
+search[1,] <- rbind(1, 0.97, theta, v, 110)
+
+# Prepare parameters for implementation of EM Algorithm
+alpha_1 <- 0.97
+theta_1 <- 66
+gamma_1 <- 130
+eta_1 <-110
+
+
+while (abs(Q[k, 2]-Q[k-1, 2])>=0.0000001 & k <= 150) {
+  # E step
+  good <- z(sim,theta_1, gamma_1, alpha_1, eta_1)
+  
+  # M step
+  dminvgaussmixecm <- function(par){
+  t <- exp(par[1])
+  g <- exp(par[2])
+  e <- exp(par[3])
+  sum(good*rIG(sim, t, g, log = T) + (1-good)*contrIG(sim, t, g, a = 0 , e, log = T))}
+  
+  
+  # Update iteration tracker
+  search[k, 1] <- k 
+  
+  # Update alpha
+  search[k,2] <- max(0.5, sum(good == 1)/length(sim)) # mean(z_i)
+  
+  # Update theta, gamma, eta 
+  search[k, 3:5] <- exp(optim(log(c(theta_1, gamma_1, eta_1)), dminvgaussmixecm, control=list(fnscale= -1))$par[1:3])
+   search[k, 6] <- optim(log(c(theta_1, gamma_1, eta_1)), dminvgaussmixecm, control=list(fnscale= -1))$value
+  
+  alpha_1 <- round(search[k,2], 5)
+  theta_1 <- search[k,3]
+  gamma_1 <- search[k,4]
+  eta_1 <- search[k,5]
+  loglike <- search[k, 6]
+  
+  k <- k + 1
+  Q[k, ] <- cbind(k, sum.finite(good*log(alpha_1) + (1-good)*log(1-alpha_1)) + sum.finite(good*rIG(sim,theta_1,gamma_1,log = T)) + (1-good)*contrIG(sim,theta_1, gamma_1, 0, eta_1, log = T)) 
+  
+  
+}
+
+
+
+BIC <- -2*min(Q$X2) + 4*26386
+AIC <- 2*4 - 2*min(Q$X2)
+
+```
+
+```{r}
+
+
+
+hist(income$Amount_invested_monthly, freq = FALSE, breaks = 30, xlab = "Amount Invested Monthly (in USD)", main = "", ylim = c(0,0.006), col = "white")
+lines(density(income$Amount_invested_monthly))
+rug(income$Amount_invested_monthly,side=1,col=income$Good)
+#curve(clnrIG(x, 2, 0.4, a = 0.85) + contrIG(x, 2, 0.4, a = 0.85, 4), 0, 50, ylab = "", ylim = c(0, 0.1))
+curve(clnrIG(x, theta_1, gamma_1, a = alpha_1), 0, 2000, lty = 2, add = TRUE)
+curve(contrIG(x, theta_1, gamma_1, a = alpha_1, eta_1), 0, 2000, add = TRUE, lty = 3)
+legend("topright", legend =c("Actual data density", "good points density", "bad points density"), lty = c(1,2, 3), title = "Simulated & Estimated rIG") 
+
+```
+### Posterior probability to be good 
+
+```{r}
+
+# mode-parameterized IG
+rIG <- function(x,theta,v,log=F){
+dinvgauss(x,sqrt(theta*(3*v+theta)), (theta*(3*v+theta))/v,log=log)
+}
+
+# Clean Component 
+clnrIG    <- function(x, t, g, a, log = F){ (a)*dinvgauss(x,sqrt(t*(3*g+t)), (t*(3*g+t))/g,log=log)}
+
+# contaminated component
+contrIG    <- function(x, t, g, a, e, log = F){ (1-a)*dinvgauss(x,sqrt(t*(3*g*e+t)), (t*(3*g*e+t))/(g*e),log=log)}
+
+sort <- sort(income$Amount_invested_monthly)
+
+post <- (alpha_1*rIG(sort, theta_1, gamma_1))/(clnrIG(sort, theta_1, gamma_1, alpha_1, log = F) + contrIG(sort, theta_1, gamma_1, alpha_1, eta_1, log = F))
+
+good <- ifelse(post > 0.5, 1, 0)
+
+plot(sort, post, pch = 16, col = good)
+
+income <- na.omit(income)
+
+plot(income$Amount_invested_monthly, income$Posterior, ylim = c(0,1), main = "", xlab = "Amount Invested Monthly (in USD)", ylab = "posterior probability to be good", col = income$Good)
+
+income2 <- tibble(bind_cols(sort,post,good))
+
+income2$...3 <- as.integer(income2$...3)
+
+ggplot(income2,aes(x=...1,y=...2,col=as.factor(...3)))+geom_point() + theme_bw() +
+  theme(axis.line = element_line(colour = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", size = 1),
+    panel.background = element_blank() )+ 
+    theme(legend.position="none") + 
+   xlab("Amount Invested Monthly (in USD)") +
+   ylab("posterior probability to be good") +
+geom_hline(yintercept = 0.5, linetype = "dotted") + 
+  geom_hline(yintercept = 1.0) + 
+  geom_hline(yintercept = 0.0) + 
+  scale_y_continuous(breaks = seq(0, 1, by = 0.1))+ 
+  scale_x_continuous(breaks = seq(0, 2000, by =250))+ 
+  scale_color_manual(values = c("black", "grey"))
+
+
+```
+
+
+## Fit base
+
+```{r}
+
+theta <- 66
+v <- 130
+
+set.seed(18)
+x<- c(rinvgauss(26386,sqrt(theta*(3*v+theta)),(theta*(3*v+theta))/v))
+
+start <- log(c(theta,v))
+
+est <- optim(par = start,fn = dminvgaussMLE,x=x, control=list(fnscale= -1))
+
+par <- est$par
+thetaest <- exp(par[1]) #back transformation
+vest <- exp(par[2])
+loglike <- est$value
+
+hist(income$Amount_invested_monthly, freq = FALSE, breaks = 30, xlab = "Amount Invested Monthly (in USD)", main = "", ylim = c(0,0.007), col = "white")
+lines(density(income$Amount_invested_monthly))
+rug(income$Amount_invested_monthly,side=1,col="black")
+#curve(clnrIG(x, 2, 0.4, a = 0.85) + contrIG(x, 2, 0.4, a = 0.85, 4), 0, 15, ylab = "f(x)", ylim = c(0, 0.5), xlab = expression(x))
+curve(clnrIG(x, thetaest, vest, a = 1), add = TRUE, lty = 2)
+legend("topright", legend =c("Actual Data density", "ML Estimated density"), lty = c(1,2), title = "Simulated & Estimated rIG")
+
+BIC <- -2*loglike + 4*26386
+AIC <- 2*2 - 2*loglike
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r Inputation & EDA}
+
+data("bp_hypnos")
+
+## Assign the output of the process_data function to a new dataframe object
+hypnos_proc <- process_data(bp_hypnos,
+                            bp_type = "abpm",
+                            sbp = 'syst',
+                            dbp = 'diast',
+                            date_time = 'date.time',
+                            id = 'id',
+                            visit = 'visit',
+                            hr = 'hr',
+                            wake = 'wake',
+                            pp = 'pp',
+                            map = 'map',
+                            rpp = 'rpp')
+
+# mrIG
+
+dmgamma <- function(x,theta,v,log=F){
+dgamma(x,theta/v+1,v,log=log)
+}
+
+# input data 
+set.seed(21)
+x <- hypnos_proc$SBP
+
+theta < as.numeric(Mode(x))
+v <- sd(x)**2
+
+# log-like with constrained parameters 
+dmgammaMLE <- function(par,x){
+theta <- exp(par[1]) #back-transformation
+v <- exp(par[2]) #back-transformation
+return(sum(dmgamma(x,theta,v,log=T)))
+}
+
+start <- log(c(theta,v))
+
+est <- optim(par = start,fn = dmgammaMLE,x=x, control=list(fnscale= -1))
+
+par <- est$par
+thetaest <- exp(par[1]) #back transformation
+vest <- exp(par[2])
+loglike <- est$value
+
+hist(x, main = "", xlim = c(75, 200), freq = FALSE, breaks = 20)
+lines(density(x))
+rug(x,side=1,col="black")
+curve(clnrIG(x, thetaest, vest, a = 1), 60, 200, ylim = c(0,0.025), ylab = "f(x)", xlab = expression(x), add = TRUE, lty = 2)
+legend("topright", legend =c("Actual data density", "ML Estimated density"), lty = c(1,2), title = "Actual data & Estimated rIG") 
+
+
+```
+
+```{r,  warning = FALSE}
+
+# modified sum only considers finite values
+sum.finite <- function(x) {
+  sum(x[is.finite(x)])
+}
+
+# reparameterised rIG pdf 
+rIG <- function(x, t, g, log = F){dgamma(x,t/g+1,g,log=log)}
+
+#clean component
+clnrIG    <- function(x, t, g, a, log = F){ (a)*dgamma(x,t/g+1,g,log=log)}
+
+# contaminated component
+contrIG    <- function(x, t, g, a, e, log = F){ (1-a)*dgamma(x,t/(g*e)+1,g*e,log=log)}
+
+z <- function(x, t, g, a, e){
+  return(ifelse((a*rIG(x, t, g))/(clnrIG(x, t, g, a, log = F) + contrIG(x, t, g, a, e, log = F)) > 0.5, 1, 0))
+}
+
+v <- 0.4
+theta <- 2
+alpha <- 0.85
+eta <- 4
+
+set.seed(18)
+sim <- x
+
+good <- z(sim, 2, 0.4, 0.85, 4)
+
+Q <- data.frame(matrix(,nrow = 0, ncol = 2))
+
+Q[1,] <- cbind(1,0)
+
+# starting value of expected value of the log likelihood
+Q[2,] <- cbind(2,sum.finite(good*log(alpha) + (1-good)*log(1-alpha)) + sum.finite(good*rIG(sim,theta,v, log = T) + (1-good)*contrIG(sim,theta, v, a = 0, eta, log = T)))
+
+k <- 2
+
+search <- data.frame(matrix(, ncol = 5, nrow = 0))
+colnames(search) <- c("Iteration", "alpha", "theta", "gamma", "eta")
+search[1,] <- rbind(1, 0.85, 2, 0.4, 4)
+
+# Prepare parameters for implementation of EM Algorithm
+alpha_1 <- 0.85
+theta_1 <- 2
+gamma_1 <- 0.4
+eta_1 <- 4
+
+
+while (abs(Q[k, 2]-Q[k-1, 2])>=0.0000001 & k <= 150) {
+  # E step
+  good <- z(sim,theta_1, gamma_1, alpha_1, eta_1)
+  
+  # M step
+  dmgammamixecm <- function(par){
+  t <- exp(par[1])
+  g <- exp(par[2])
+  e <- exp(par[3])
+  sum(good*rIG(sim, t, g, log = T) + (1-good)*contrIG(sim, t, g, a = 0 , e, log = T))}
+  
+  
+  # Update iteration tracker
+  search[k, 1] <- k 
+  
+  # Update alpha
+  search[k,2] <- max(0.5, sum(good == 1)/length(sim)) # mean(z_i)
+  
+  # Update theta, gamma, eta 
+  search[k, 3:5] <- exp(optim(log(c(theta_1, gamma_1, eta_1)), dmgammamixecm, control=list(fnscale= -1))$par[1:3])
+   search[k, 6] <- optim(log(c(theta_1, gamma_1, eta_1)), dmgammamixecm, control=list(fnscale= -1))$value
+  
+  alpha_1 <- search[k,2]
+  theta_1 <- search[k,3]
+  gamma_1 <- search[k,4]
+  eta_1 <- search[k,5]
+  loglike <- search[k, 6]
+  
+  k <- k + 1
+  Q[k, ] <- cbind(k, sum.finite(good*log(alpha_1) + (1-good)*log(1-alpha_1)) + sum.finite(good*rIG(sim,theta_1,gamma_1,log = T)) + (1-good)*contrIG(sim,theta_1, gamma_1, 0, eta_1, log = T)) 
+  
+  
+}
+
+hist(sim, main = "", xlim = c(75, 200), freq = FALSE, breaks = 20)
+lines(density(sim))
+rug(sim,side=1,col="black")
+#curve(clnrIG(x, 2, 0.4, a = 0.85) + contrIG(x, 2, 0.4, a = 0.85, 4), 0, 50, ylab = "", ylim = c(0, 0.1))
+curve(clnrIG(x, theta_1, gamma_1, a = alpha_1), 80, 200, add = TRUE, lty = 2)
+curve(contrIG(x, theta_1, gamma_1, a = alpha_1, eta_1), 80, 200, add = TRUE, lty = 3)
+legend("topright", legend =c("Actual data density", "good points density", "bad points density"), lty = c(1,2, 3), title = "Simulated & Estimated rIG") 
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Mixed simulation and estimation
+
+```{r}
+# define mode parameterised gamma density function
+dmgamma <- function(x,theta,v,log=F){
+dgamma(x,theta/v+1,v,log=log)
+}
+
+
+theta <- 2
+v <- 0.4
+eta <- 2 
+alpha <- 0.75
+
+#simulate contaminated data 
+
+set.seed(18)
+x<- alpha*rgamma(500,theta/v+1,v) + 0.25*rgamma(500,theta/2*v+1,2*v) # because we choose eta = 2
+
+dmgammaMLE <- function(par,x){
+lambda <- exp(par[1]) #back-transformation
+v <- exp(par[2]) #back-transformation
+return(sum(dmgamma(x,lambda,v,log=T)))
+}
+
+
+# we need to use constrained optimisation.
+start <- log(c(theta,v)) #transformation
+
+
+# we can use optim to get the mle's
+# optim needs the arguement of the parameters it is trying to estimate as the first argument.
+# we use fnscale=-1, because optim minimizes by default.
+
+est <- optim(par = start,fn = dmgammaMLE,x=x, control=list(fnscale= -1))
+#extract estimated parameters
+par <- est$par
+theta <- exp(par[1]) #back transformation
+vest <- exp(par[2])
+loglike <- est$value
+
+curve
+
+```
+
+# Contaminated simulation and contaminated estimation 
+
+```{r,  warning = FALSE}
+
+# modified sum only considers finite values
+sum.finite <- function(x) {
+  sum(x[is.finite(x)])
+}
+
+# reparameterised rIG pdf 
+rIG <- function(x, t, g, log = F){dgamma(x,t/g+1,g,log=log)}
+
+crIG <- function(x, t, g, a, e, log = F){
+  return(ifelse( a >= 1, dgamma(x,t/g+1,g,log=log), a*dgamma(x,t/g+1,g,log=log) + (1-a)*dgamma(x,theta/(g*e)+1,g*e,log=log)))
+}
+
+#clean component
+clnrIG    <- function(x, t, g, a , log = F){ (a)*dgamma(x,t/g+1,g,log=log)}
+
+# contaminated component
+contrIG    <- function(x, t, g, a , e, log = F){ (1-a)*dgamma(x,t/g*e+1,g*e,log=log)}
+
+z <- function(x, t, g, a, e){
+  return(ifelse(crIG(x, t, g, a, e) <= 0, 1, ifelse((a*rIG(x, t, g))/crIG(x, t, g, a, e) > 0.5, 1, 0)))
+}
+
+v <- 0.4
+theta <- 2
+alpha <- 0.85
+eta <- 4
+
+set.seed(18)
+sim <- c(rgamma(500*0.75,theta/v+1,v), rgamma(500*0.25,theta/(2*v)+1,2*v))
+
+
+good <- z(sim[1:500], 2, 0.4, 0.85, 4)
+
+Q <- data.frame(matrix(,nrow = 0, ncol = 2))
+
+Q[1,] <- cbind(1,0)
+
+# starting value of expected value of the log likelihood
+Q[2,] <- cbind(2,sum.finite(good*log(alpha) + (1-good)*log(1-alpha)) + sum.finite(good*rIG(sim,theta,v, log = T) + (1-good)*contrIG(sim,theta, v, a = 0, eta, log = T)))
+
+k <- 2
+
+search <- data.frame(matrix(, ncol = 5, nrow = 0))
+colnames(search) <- c("Iteration", "alpha", "theta", "gamma", "eta")
+search[1,] <- rbind(1, 0.75, 2, 0.4, 2, 0)
+
+# Prepare parameters for implementation of EM Algorithm
+alpha_1 <- 0.75
+theta_1 <- 2
+gamma_1 <- 0.4
+eta_1 <- 2
+
+
+while (abs(Q[k, 2]-Q[k-1, 2])>=0.0001) {
+  # E step
+  good <- z(sim[1:500],theta_1, gamma_1, alpha_1, eta_1)
+  
+  # M step
+  dmgammamixecm <- function(par){
+  t <- par[1]
+  g <- par[2]
+  e <- par[3]
+  sum.finite(good*rIG(sim, t, g,  log = T) + (1-good)*contrIG(sim, t, g, a = 0 , e, log = T))}
+  
+  
+  # Update iteration tracker
+  search[k, 1] <- k 
+  
+  # Update alpha
+  search[k,2] <- max(0.5, sum(good == 1)/length(sim)) # mean(z_i)
+  
+  # Update theta, gamma, eta 
+  search[k, 3:5] <- optim(log(c(theta_1, gamma_1, eta_1)), dmgammamixecm)$par[1:3]
+  
+  alpha_1 <- search[k,2]
+  theta_1 <- search[k,3]
+  gamma_1 <- search[k,4]
+  eta_1 <- search[k,5]
+  
+  k <- k + 1
+  Q[k, ] <- cbind(k, sum.finite(good*log(alpha_1) + (1-good)*log(1-alpha_1)) + sum.finite(good*rIG(sim,theta_1,gamma_1,log = T)) + (1-good)*contrIG(sim,theta_1, gamma_1, 0, eta_1, log = T)) 
+  
+  
+}
+
+curve(clnrIG(x, 2, 0.4) + contrIG(x, 2, 0.4, a = 0.75, 2), 0, 100)
+curve(crIG(x, 2, 0.4), 0, 100)
+
+```
+
+
+
+```{r,  warning = FALSE}
+
+# modified sum only considers finite values
+sum.finite <- function(x) {
+  sum(x[is.finite(x)])
+}
+
+# reparameterised rIG pdf 
+rIG <- function(x, t, g, log = F){dgamma(x,t/g+1,g,log=log)}
+
+#clean component
+clnrIG    <- function(x, t, g, a, log = F){ (a)*dgamma(x,t/g+1,g,log=log)}
+
+# contaminated component
+contrIG    <- function(x, t, g, a, e, log = F){ (1-a)*dgamma(x,t/(g*e)+1,g*e,log=log)}
+
+z <- function(x, t, g, a, e){
+  return(ifelse((a*rIG(x, t, g))/(clnrIG(x, t, g, a, log = F) + contrIG(x, t, g, a, e, log = F)) > 0.5, 1, 0))
+}
+
+v <- 0.4
+theta <- 2
+alpha <- 0.75
+eta <- 2
+
+set.seed(18)
+sim <- c(rgamma(500*0.75,theta/v+1,v), rgamma(500*0.25,theta/(2*v)+1,2*v))
+
+good <- z(sim, 2, 0.4, 0.75, 2)
+
+Q <- data.frame(matrix(,nrow = 0, ncol = 2))
+
+Q[1,] <- cbind(1,0)
+
+# starting value of expected value of the log likelihood
+Q[2,] <- cbind(2,sum.finite(good*log(alpha) + (1-good)*log(1-alpha)) + sum.finite(good*rIG(sim,theta,v, log = T) + (1-good)*contrIG(sim,theta, v, a = 0, eta, log = T)))
+
+k <- 2
+
+search <- data.frame(matrix(, ncol = 5, nrow = 0))
+colnames(search) <- c("Iteration", "alpha", "theta", "gamma", "eta")
+search[1,] <- rbind(1, 0.75, 2, 0.4, 2)
+
+# Prepare parameters for implementation of EM Algorithm
+alpha_1 <- 0.75
+theta_1 <- 2
+gamma_1 <- 0.4
+eta_1 <- 2
+
+
+while (abs(Q[k, 2]-Q[k-1, 2])>=0.0000001) {
+  # E step
+  good <- z(sim,theta_1, gamma_1, alpha_1, eta_1)
+  
+  # M step
+  dmgammamixecm <- function(par){
+  t <- exp(par[1])
+  g <- exp(par[2])
+  e <- exp(par[3])
+  sum(good*rIG(sim, t, g, log = T) + (1-good)*contrIG(sim, t, g, a = 0 , e, log = T))}
+  
+  
+  # Update iteration tracker
+  search[k, 1] <- k 
+  
+  # Update alpha
+  search[k,2] <- max(0.5, sum(good == 1)/length(sim)) # mean(z_i)
+  
+  # Update theta, gamma, eta 
+  search[k, 3:5] <- exp(optim(log(c(theta_1, gamma_1, eta_1)), dmgammamixecm, control=list(fnscale= -1))$par[1:3])
+  
+  alpha_1 <- search[k,2]
+  theta_1 <- search[k,3]
+  gamma_1 <- search[k,4]
+  eta_1 <- search[k,5]
+  
+  k <- k + 1
+  Q[k, ] <- cbind(k, sum.finite(good*log(alpha_1) + (1-good)*log(1-alpha_1)) + sum.finite(good*rIG(sim,theta_1,gamma_1,log = T)) + (1-good)*contrIG(sim,theta_1, gamma_1, 0, eta_1, log = T)) 
+  
+  
+}
+
+curve(clnrIG(x, 2, 0.4, a = 0.75) + contrIG(x, 2, 0.4, a = 0.75, 2), 0, 50, ylab = "", ylim = c(0, 0.1))
+curve(clnrIG(x, theta_1, gamma_1, a = alpha_1) + contrIG(x, theta_1, gamma_1, a = alpha_1, eta_1), 0, 50, add = TRUE, lty = 2)
+
+```
